@@ -1,0 +1,9 @@
+{
+  "id": "jwt-pwn",
+  "name": "JWT-PWN",
+  "version": "1.0.0",
+  "description": "Auth Header Analyzer + JWT Attack Suite for Caido",
+  "author": "jwt-pwn contributors",
+  "permissions": ["intercept", "findings", "ui:sidebar", "ui:context-menu"]
+}
+EOF
