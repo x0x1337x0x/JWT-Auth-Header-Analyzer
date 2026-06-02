@@ -1,4 +1,3 @@
-cat > /home/claude/jwt-auth-toolkit/README.md << 'EOF'
 # 🔐 JWT-PWN — Auth Header Analyzer + JWT Attack Suite
 
 > A comprehensive, browser-native JWT security testing toolkit with integrations for Burp Suite, Caido, and a standalone Python CLI.
