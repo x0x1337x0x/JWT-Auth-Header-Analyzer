@@ -6,4 +6,3 @@
   "author": "jwt-pwn contributors",
   "permissions": ["intercept", "findings", "ui:sidebar", "ui:context-menu"]
 }
-EOF
