@@ -111,5 +111,9 @@ This tool is for authorized security testing only. Never use against systems you
 
 ---
 
+## Disclaimer
+
+Thanks to claude AI generate beautiful interface UI.
+
 ## License: MIT
 EOF
